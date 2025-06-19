@@ -1,12 +1,12 @@
 [package]
-name = "simple-tcp"
+name = "toy-network"
 version = "0.1.0"
 edition = "2021"
 description = "A simple TCP/IP stack implementation in Rust"
 license = "MIT"
 
 [lib]
-name = "simple_tcp"
+name = "toy_network"
 path = "src/lib.rs"
 
 [dependencies]
@@ -14,5 +14,9 @@ tun-tap = "0.1.4"
 byteorder = "1.4"
 
 [[example]]
-name = "simple_tcp_stack"
-path = "examples/simple_tcp_stack.rs"
+name = "listener"
+path = "examples/listener.rs"
+
+[[example]]
+name = "virtual_network_demo"
+path = "examples/virtual_network_demo.rs"
