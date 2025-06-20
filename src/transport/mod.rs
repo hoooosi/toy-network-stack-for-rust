@@ -9,4 +9,4 @@ pub mod udp;
 
 // Re-export commonly used items
 pub use tcp::{TcpSocket, TcpHeader, TcpState};
-pub use udp::{UdpHeader, UdpPacket, UdpSocket, UdpError, calculate_udp_checksum, validate_udp_packet, create_udp_packet_with_checksum};
+pub use udp::{UdpHeader, UdpPacket, UdpSocket, UdpUtils};

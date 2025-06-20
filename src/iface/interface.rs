@@ -7,8 +7,6 @@
 //! - Source address selection and broadcast address handling
 
 use crate::iface::ip::{IpAddr, IpInterace};
-use crate::transport::tcp::TcpSocket;
-use crate::transport::udp::UdpSocket;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};

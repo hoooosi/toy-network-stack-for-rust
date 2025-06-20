@@ -13,5 +13,3 @@ pub mod virtual_network;
 
 // Re-export commonly used items
 pub use ip::*;
-// pub use ip::NetworkInterface;
-// pub use virtual_network::{Packet, VirtualNetwork, VirtualNetworkStats};

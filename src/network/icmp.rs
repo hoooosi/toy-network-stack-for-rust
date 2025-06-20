@@ -5,6 +5,8 @@
 
 use byteorder::{BigEndian, ByteOrder};
 
+use crate::{network::checksum, Ipv4Header};
+
 /// Minimum ICMP header length in bytes
 const ICMP_HEADER_LEN: usize = 8;
 
@@ -78,5 +80,42 @@ impl IcmpHeader {
     /// Set the sequence number field for Echo Request/Reply messages
     pub fn set_sequence(&mut self, seq: u16) {
         BigEndian::write_u16(&mut self.rest[2..4], seq);
+    }
+}
+
+pub struct IcmpUtils {}
+
+impl IcmpUtils {
+    pub fn create_icmpv4_reply(
+        ip_header: &Ipv4Header,
+        _icmp_header: &IcmpHeader,
+        ip_packet: &[u8],
+    ) -> Vec<u8> {
+        let ip_header_len = ip_header.header_len();
+        // Create response IP header
+        let mut response_data = ip_packet.to_vec();
+
+        // Swap source and destination addresses
+        response_data[12..16].copy_from_slice(&ip_header.dst_addr);
+        response_data[16..20].copy_from_slice(&ip_header.src_addr);
+
+        // Update TTL
+        response_data[8] = 64;
+
+        // Clear IP checksum for recalculation
+        response_data[10..12].copy_from_slice(&[0, 0]);
+        let ip_checksum = checksum(&response_data[..ip_header_len]);
+        response_data[10..12].copy_from_slice(&ip_checksum.to_be_bytes());
+
+        // Update ICMP header
+        response_data[ip_header_len] = ICMP_TYPE_ECHO_REPLY;
+
+        // Clear ICMP checksum for recalculation
+        response_data[ip_header_len + 2..ip_header_len + 4].copy_from_slice(&[0, 0]);
+        let icmp_checksum = checksum(&response_data[ip_header_len..]);
+        response_data[ip_header_len + 2..ip_header_len + 4]
+            .copy_from_slice(&icmp_checksum.to_be_bytes());
+
+        response_data
     }
 }

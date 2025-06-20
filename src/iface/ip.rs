@@ -1,8 +1,10 @@
+use crate::network::ipv4::{protocol, Ipv4Header, Ipv4Utils};
 use crate::transport::tcp::TcpSocket;
-use crate::transport::udp::{UdpSocket, UdpError};
+use crate::transport::udp::{UdpSocket, UdpUtils};
 use crate::transport::UdpPacket;
 use std::collections::HashMap;
 use std::collections::VecDeque;
+use std::fmt::Error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IpAddr {
@@ -32,14 +34,42 @@ impl IpInterace {
 
     pub fn process_packet(&mut self, packet: &Vec<u8>) {
         match self.address {
-            IpAddr::V4(addr) => {
+            IpAddr::V4(_) => {
                 // Handle IPv4 packet processing
                 self.process_ipv4_packet(packet);
             }
-            IpAddr::V6(addr) => {
-                // Handle IPv6 packet processing
-                // TODO: Implement IPv6 packet handling logic
+            _ => {}
+        }
+    }
+
+    /// Send IP packet (supports both IPv4 and IPv6)
+    /// Validates packet format, calculates checksum, and adds it to output queue
+    pub fn send_ip_packet(&mut self, packet: &Vec<u8>) -> Result<(), Error> {
+        if packet.is_empty() {
+            return Err(Error);
+        }
+
+        // Determine IP version from the first 4 bits
+        let version = (packet[0] >> 4) & 0x0F;
+
+        match version {
+            4 => {
+                // IPv4 packet processing
+                if packet.len() < 20 {
+                    return Err(Error);
+                }
+
+                let header = Ipv4Header::from_bytes(packet).ok_or(Error)?;
+                header.validate()?;
+                self.output_queue.push_back(packet.clone());
+                Ok(())
             }
+            6 => {
+                // IPv6 packet processing
+                // TODO: Implement IPv6 packet handling logic
+                Err(Error)
+            }
+            _ => Err(Error),
         }
     }
 
@@ -47,12 +77,49 @@ impl IpInterace {
         return dst_addr == &self.address;
     }
 
-    pub fn bind_udp_socket(&mut self, port: u16) -> Result<(), UdpError> {
+    pub fn bind_udp_socket(&mut self, port: u16) -> Result<(), Error> {
         if self.udp_sockets.contains_key(&port) {
-            return Err(UdpError::InvalidPort);
+            return Err(Error);
         }
         let socket = UdpSocket::new(port)?;
         self.udp_sockets.insert(port, socket);
+        Ok(())
+    }
+
+    pub fn send_udp_packet(&mut self, dst_addr: &IpAddr, packet: &Vec<u8>) -> Result<(), Error> {
+        // Get source IP address
+        let src_addr = &self.address;
+
+        // Validate IP address version match
+        match (src_addr, dst_addr) {
+            (IpAddr::V4(_), IpAddr::V4(_)) | (IpAddr::V6(_), IpAddr::V6(_)) => {}
+            _ => return Err(Error),
+        }
+
+        // Parse UDP header
+        let final_packet = packet.clone();
+        UdpUtils::validate_udp_packet(src_addr, dst_addr, &final_packet)?;
+
+        // Create IP packet based on IP version
+        let ip_packet = match (src_addr, dst_addr) {
+            (IpAddr::V4(src_ipv4), IpAddr::V4(dst_ipv4)) => {
+                // Create IPv4 header
+                let ipv4_header = Ipv4Header::new_simple(
+                    protocol::UDP,
+                    *src_ipv4,
+                    *dst_ipv4,
+                    packet.len() as u16,
+                );
+
+                // Create complete IPv4 packet
+                Ipv4Utils::create_packet_with_payload(&ipv4_header, packet)
+            }
+            _ => unreachable!(),
+        };
+
+        // Send the constructed IP packet
+        self.send_ip_packet(&ip_packet)?;
+
         Ok(())
     }
 
@@ -61,35 +128,5 @@ impl IpInterace {
             return socket.recv();
         }
         None
-    }
-
-    /// Send UDP data to a destination
-    pub fn send_udp(&mut self, src_port: u16, dst_addr: IpAddr, dst_port: u16, data: &[u8]) -> Result<(), UdpError> {
-        if let Some(socket) = self.udp_sockets.get_mut(&src_port) {
-            socket.send_to(data, dst_addr, dst_port)?;
-            Ok(())
-        } else {
-            Err(UdpError::SocketNotBound)
-        }
-    }
-
-    /// Process outgoing UDP packets and add them to output queue
-    pub fn process_udp_tx(&mut self) {
-        let mut packets_to_send = Vec::new();
-        
-        for (port, socket) in self.udp_sockets.iter_mut() {
-            while let Some(udp_packet) = socket.dequeue_tx_packet() {
-                packets_to_send.push(udp_packet);
-            }
-        }
-        
-        for packet in packets_to_send {
-            self.output_queue.push_back(packet);
-        }
-    }
-
-    /// Get the next packet from output queue
-    pub fn dequeue_output(&mut self) -> Option<Vec<u8>> {
-        self.output_queue.pop_front()
     }
 }

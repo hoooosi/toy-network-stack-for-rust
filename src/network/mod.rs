@@ -9,7 +9,7 @@ pub mod ipv4;
 
 // Re-export commonly used items
 pub use icmp::{IcmpHeader, ICMP_TYPE_ECHO_REPLY, ICMP_TYPE_ECHO_REQUEST};
-pub use ipv4::Ipv4Header;
+pub use ipv4::{Ipv4Header, flags, protocol};
 
 /// Calculate Internet checksum
 ///

@@ -15,4 +15,3 @@ pub use network::ipv4::Ipv4Header;
 pub use network::icmp::{IcmpHeader, ICMP_TYPE_ECHO_REQUEST, ICMP_TYPE_ECHO_REPLY};
 pub use transport::tcp::{TcpHeader, TcpState, TcpSocket};
 pub use iface::interface::NetworkInterface;
-// pub use iface::virtual_network::{VirtualNetwork, VirtualNetworkStats, Packet};
