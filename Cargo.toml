@@ -17,6 +17,10 @@ byteorder = "1.4"
 name = "listener"
 path = "examples/listener.rs"
 
+# [[example]]
+# name = "virtual_network_demo"
+# path = "examples/virtual_network_demo.rs"
+
 [[example]]
-name = "virtual_network_demo"
-path = "examples/virtual_network_demo.rs"
+name = "udp_echo"
+path = "examples/udp_echo.rs"

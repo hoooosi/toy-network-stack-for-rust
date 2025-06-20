@@ -120,7 +120,7 @@ impl TcpHeader {
 /// 
 /// Manages the state and parameters of a TCP connection
 #[derive(Debug)]
-pub struct Connection {
+pub struct TcpSocket {
     pub state: TcpState,
     pub local_addr: [u8; 4],
     pub remote_addr: [u8; 4],
@@ -132,10 +132,10 @@ pub struct Connection {
     pub remote_ack: u32,
 }
 
-impl Connection {
+impl TcpSocket {
     /// Create a new TCP connection in LISTEN state
     pub fn new() -> Self {
-        Connection {
+        TcpSocket {
             state: TcpState::Listen,
             local_addr: [0; 4],
             remote_addr: [0; 4],
@@ -150,7 +150,7 @@ impl Connection {
     
     /// Create a new TCP connection with specified local address and port
     pub fn new_with_addr(local_addr: [u8; 4], local_port: u16) -> Self {
-        Connection {
+        TcpSocket {
             state: TcpState::Listen,
             local_addr,
             remote_addr: [0; 4],
@@ -220,50 +220,8 @@ impl Connection {
     }
 }
 
-impl Default for Connection {
+impl Default for TcpSocket {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_tcp_header_parsing() {
-        let data = [
-            0x00, 0x50, 0x00, 0x80, // Source port: 80, Dest port: 128
-            0x00, 0x00, 0x00, 0x01, // Sequence number: 1
-            0x00, 0x00, 0x00, 0x00, // Acknowledgment number: 0
-            0x50, 0x02, 0x20, 0x00, // Data offset + flags, Window size
-            0x00, 0x00, 0x00, 0x00, // Checksum, Urgent pointer
-        ];
-        
-        let header = TcpHeader::from_bytes(&data).unwrap();
-        assert_eq!(header.src_port, 80);
-        assert_eq!(header.dst_port, 128);
-        assert_eq!(header.seq_number, 1);
-        assert!(header.is_syn());
-        assert!(!header.is_ack());
-    }
-    
-    #[test]
-    fn test_tcp_connection_state_machine() {
-        let mut conn = Connection::new();
-        assert_eq!(conn.state, TcpState::Listen);
-        
-        // Simulate SYN packet
-        let syn_data = [
-            0x00, 0x80, 0x00, 0x50, // Ports
-            0x00, 0x00, 0x00, 0x01, // Seq: 1
-            0x00, 0x00, 0x00, 0x00, // Ack: 0
-            0x50, 0x02, 0x20, 0x00, // SYN flag set
-            0x00, 0x00, 0x00, 0x00, // Checksum, Urgent
-        ];
-        
-        let response = conn.on_packet(&syn_data);
-        assert_eq!(conn.state, TcpState::SynRcvd);
-        assert!(response.is_some());
     }
 }

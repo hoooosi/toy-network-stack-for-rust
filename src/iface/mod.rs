@@ -1,5 +1,5 @@
 //! Network interface abstraction layer
-//! 
+//!
 //! This module provides abstractions for network interfaces and packet processing:
 //! - Interface management
 //! - Packet routing and processing
@@ -7,8 +7,11 @@
 //! - Virtual network with IP pool management
 
 pub mod interface;
+pub mod ip;
+pub mod ipv4;
 pub mod virtual_network;
 
 // Re-export commonly used items
-pub use interface::NetworkInterface;
-pub use virtual_network::{VirtualNetwork, VirtualNetworkStats, Packet};
+pub use ip::*;
+// pub use ip::NetworkInterface;
+// pub use virtual_network::{Packet, VirtualNetwork, VirtualNetworkStats};
