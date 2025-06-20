@@ -1,12 +1,12 @@
 mod utils;
-use std::io::Result;
+use std::{fmt::Error, io::Result};
 
 use toy_network::{
     iface::{IpAddr, IpInterace},
     transport::{UdpHeader, UdpUtils},
 };
 use tun_tap::{Iface, Mode};
-use utils::network::{configure_interface};
+use utils::network::configure_interface;
 
 fn main() -> Result<()> {
     let port = 7;
@@ -14,11 +14,16 @@ fn main() -> Result<()> {
     let iface = Iface::without_packet_info(tun_name, Mode::Tun)?;
     configure_interface(tun_name, "10.0.0.254/24")?;
     let mut local_ip = IpInterace::new(IpAddr::V4([10, 0, 0, 1]), 24);
-    if let Err(e) = local_ip.bind_udp_socket(port) {
-        eprintln!("Failed to bind UDP socket: {}", e);
-        return Ok(());
-    }
-
+    match local_ip.bind_udp_socket(port) {
+        Some(socket) => socket,
+        None => {
+            println!("Failed to bind UDP socket");
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to bind UDP socket",
+            ));
+        }
+    };
     let mut buf = [0u8; 1504]; // MTU + some overhead
 
     loop {
@@ -56,9 +61,16 @@ fn main() -> Result<()> {
                 udp_payload,
             );
 
-            if let Err(e) = local_ip.send_udp_packet(&dst_addr, &udp_response) {
-                eprintln!("Failed to send UDP packet: {}", e);
-            }
+            let socket = match local_ip.bind_udp_socket(port) {
+                Some(socket) => socket,
+                None => {
+                    println!("Failed to bind UDP socket");
+                    break;
+                }
+            };
+            socket
+                .send_to(dst_addr, udp_response)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
         }
 
         loop {

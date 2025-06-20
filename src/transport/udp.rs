@@ -2,11 +2,12 @@
 //!
 //! This module provides UDP packet parsing capabilities.
 
-use crate::iface::ip::IpAddr;
+use crate::iface::ip::{IpAddr, OutgoingPacketRequest};
 use crate::network::checksum;
 use byteorder::{BigEndian, ByteOrder};
-use std::collections::{ VecDeque};
-use std::fmt::{Error};
+use std::collections::VecDeque;
+use std::fmt::Error;
+use std::sync::mpsc::Sender;
 
 /// UDP header length in bytes
 const UDP_HEADER_LEN: usize = 8;
@@ -61,18 +62,20 @@ pub struct UdpPacket {
 #[derive(Debug)]
 pub struct UdpSocket {
     pub bind_port: u16,
+    pub packet_sender: Sender<OutgoingPacketRequest>,
     pub rx_queue: VecDeque<UdpPacket>,
 }
 
 impl UdpSocket {
     /// Creates a new UDP socket bound to a specific port.
-    pub fn new(port: u16) -> Result<Self, Error> {
+    pub fn new(port: u16, packet_sender: Sender<OutgoingPacketRequest>) -> Result<Self, Error> {
         if port == 0 {
             return Err(Error);
         }
 
         Ok(UdpSocket {
             bind_port: port,
+            packet_sender,
             rx_queue: VecDeque::new(),
         })
     }
@@ -84,9 +87,19 @@ impl UdpSocket {
         Ok(())
     }
 
+    pub fn send_to(&self, dst_addr: IpAddr, packet: Vec<u8>) -> Result<(), Error> {
+        let request = OutgoingPacketRequest::Udp { dst_addr, packet };
+        self.packet_sender.send(request).map_err(|_| Error)?;
+        Ok(())
+    }
+
     /// Dequeues a packet for the application to process.
     pub fn recv(&mut self) -> Option<UdpPacket> {
         self.rx_queue.pop_front()
+    }
+
+    pub fn has_packet(&self) -> bool {
+        !self.rx_queue.is_empty()
     }
 }
 

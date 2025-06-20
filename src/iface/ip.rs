@@ -5,6 +5,7 @@ use crate::transport::UdpPacket;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt::Error;
+use std::sync::mpsc::{channel, Receiver, Sender};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IpAddr {
@@ -12,22 +13,31 @@ pub enum IpAddr {
     V6([u8; 16]),
 }
 
+pub enum OutgoingPacketRequest {
+    Udp { dst_addr: IpAddr, packet: Vec<u8> },
+}
+
 pub struct IpInterace {
     pub address: IpAddr,
     pub prefix: u8,
     pub tcp_sockets: HashMap<u16, TcpSocket>,
     pub udp_sockets: HashMap<u16, UdpSocket>,
+    pub packet_receiver: Receiver<OutgoingPacketRequest>,
+    pub packet_sender: Sender<OutgoingPacketRequest>,
     pub output_queue: VecDeque<Vec<u8>>,
 }
 
 impl IpInterace {
     /// Create a new network interface with the specified IP address and netmask
     pub fn new(address: IpAddr, prefix: u8) -> Self {
+        let (tx, rx) = channel();
         IpInterace {
             address,
             prefix,
             tcp_sockets: HashMap::new(),
             udp_sockets: HashMap::new(),
+            packet_receiver: rx,
+            packet_sender: tx,
             output_queue: VecDeque::new(),
         }
     }
@@ -77,16 +87,43 @@ impl IpInterace {
         return dst_addr == &self.address;
     }
 
-    pub fn bind_udp_socket(&mut self, port: u16) -> Result<(), Error> {
-        if self.udp_sockets.contains_key(&port) {
-            return Err(Error);
+    pub fn bind_udp_socket(&mut self, port: u16) -> Option<&mut UdpSocket> {
+        if port == 0 {
+            return None;
         }
-        let socket = UdpSocket::new(port)?;
+        if self.udp_sockets.contains_key(&port) {
+            return Some(self.udp_sockets.get_mut(&port).unwrap());
+        }
+        let socket = UdpSocket::new(port, self.packet_sender.clone()).ok()?;
         self.udp_sockets.insert(port, socket);
-        Ok(())
+        Some(self.udp_sockets.get_mut(&port).unwrap())
     }
 
-    pub fn send_udp_packet(&mut self, dst_addr: &IpAddr, packet: &Vec<u8>) -> Result<(), Error> {
+    pub fn recv_udp_packet(&mut self, port: u16) -> Option<UdpPacket> {
+        if let Some(socket) = self.udp_sockets.get_mut(&port) {
+            if socket.has_packet() {
+                return socket.recv();
+            } else {
+                self.wait_packet();
+            }
+        }
+        None
+    }
+
+    fn wait_packet(&mut self) {
+        while let Ok(request) = self.packet_receiver.try_recv() {
+            match request {
+                OutgoingPacketRequest::Udp { dst_addr, packet } => {
+                    println!("recv udp packet");
+                    if let Err(_) = self.send_udp_packet(&dst_addr, &packet) {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    fn send_udp_packet(&mut self, dst_addr: &IpAddr, packet: &Vec<u8>) -> Result<(), Error> {
         // Get source IP address
         let src_addr = &self.address;
 
@@ -121,12 +158,5 @@ impl IpInterace {
         self.send_ip_packet(&ip_packet)?;
 
         Ok(())
-    }
-
-    pub fn recv_udp_packet(&mut self, port: u16) -> Option<UdpPacket> {
-        if let Some(socket) = self.udp_sockets.get_mut(&port) {
-            return socket.recv();
-        }
-        None
     }
 }
